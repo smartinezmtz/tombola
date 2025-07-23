@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tómbola con Preguntas</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      color: #1976d2;
+      margin-bottom: 1rem;
+	  text-align: center;
+    }
+    #tombola {
+      background: white;
+      border-radius: 10px;
+      padding: 2rem;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      max-width: 550px;
+      width: 100%;
+      text-align: center;
+    }
+    #selected {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #43a047;
+      min-height: 2.5rem;
+      margin: 1.2rem 0;
+    }
+    button {
+      background: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 30px;
+      padding: 0.8rem 1.8rem;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0.5rem;
+    }
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+    button:hover:not(:disabled) {
+      background: #1565c0;
+    }
+    .lists {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .list-box {
+      flex: 1;
+      background: #e3f2fd;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .list-box h3 {
+      margin-top: 0;
+      font-size: 1rem;
+      color: #0d47a1;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    li {
+      font-size: 0.95rem;
+      padding: 2px 0;
+    }
+    #resetBtn {
+      background-color: #e53935;
+    }
+    #resetBtn:hover {
+      background-color: #b71c1c;
+    }
+
+    /* Modal */
+    #modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 10px;
+      max-width: 500px;
+      width: 100%;
+      position: relative;
+      text-align: left;
+    }
+    .modal-content h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
+    .option {
+      background: #eeeeee;
+      border-radius: 5px;
+      padding: 0.6rem;
+      margin-top: 0.5rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .option:hover {
+      background: #d6e4f0;
+    }
+    .correct {
+      background: #c8e6c9 !important;
+    }
+    .incorrect {
+      background: #ffcdd2 !important;
+    }
+    .btn-close {
+      margin-top: 1.5rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1 id="title">GCIA. SISTEMAS COTIZADORES Y ASESORES</h1>
+  <div id="tombola">
+    <div id="selected">Presiona el botón para comenzar</div>
+    <button id="drawBtn">Sacar nombre</button>
+    <button id="resetBtn" style="display: none;">Reiniciar tómbola</button>
+
+
+  <!-- Modal -->
+<div id="modal">
+  <div class="modal-content">
+    <h2 id="personName"></h2>
+    <h3 id="questionTitle"></h3>
+    <div id="optionsContainer"></div>
+    <button class="btn-close" id="closeModalBtn">Continuar</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+
+const socket = io();
+
+const nombresOriginales = [
+	"JUAN JESUS GONZALEZ VALLEJO",
+	"ANGEL GOMEZ OLIVER",
+	"ANTONIO DE JESUS PADILLA SOTO",
+	"CLAUDIO VELASQUEZ ORUÑA",
+	"PATRICIA ROBERTO LOPEZ",
+	"ALBERTO ZAVALA TORRES",
+	"FRANCISCO RAMIREZ CAMACHO",
+	"JOSE MANUEL SEGUNDO CARMEN",
+	"ALEJANDRO REN KOGISO YOON",
+	"FERNANDO MARTINEZ SANCHEZ",
+	"DAVID ALEJANDRO MENDEZ LUNA",
+	"JESUS ALBERTO RUIZ MONTALVO",
+	"LUIS RAUL CADENA GONZALEZ",
+	"LUIS MIGUEL CRUZ BALDERAS",
+	"ANA IVETTE LOPEZ REYES",
+	"EMMANUEL MORALES TOLEDO",
+	"CARLOS ALBERTO DE JESUS VELASCO",
+	"EDUARDO REYES MONTIEL",
+	"GUSTAVO ORTIZ REYES",
+	"RICARDO ANTONIO VARGAS BADILLO",
+	"ALEXIS DIAZ RUEDA",
+];
+const preguntasOriginales = [
+  {
+    "pregunta": "¿Cuál de los siguientes es un método seguro para almacenar contraseñas en Java?",
+    "opciones": [
+      "Guardarlas en texto plano",
+      "Usar el algoritmo MD5",
+      "Usar BCrypt o PBKDF2",
+      "Almacenarlas en un archivo XML"
+    ],
+    "respuesta": "Usar BCrypt o PBKDF2"
+  },
+  {
+    "pregunta": "¿Qué vulnerabilidad explota un ataque SQL Injection en Java?",
+    "opciones": [
+      "Falta de validación de entradas en consultas SQL",
+      "Uso de contraseñas débiles",
+      "Almacenamiento inseguro de archivos",
+      "Falta de cifrado en el transporte"
+    ],
+    "respuesta": "Falta de validación de entradas en consultas SQL"
+  },
+  {
+    "pregunta": "¿Cuál es la forma correcta de prevenir XSS (Cross-Site Scripting) en Java?",
+    "opciones": [
+      "Usar HttpOnly en las cookies",
+      "Escapar caracteres especiales en salidas HTML",
+      "Validar todas las entradas del usuario",
+      "Todas las anteriores"
+    ],
+    "respuesta": "Todas las anteriores"
+  },
+  {
+    "pregunta": "¿Qué clase de Java es vulnerable a ataques de deserialización maliciosa?",
+    "opciones": [
+      "ObjectInputStream",
+      "FileInputStream",
+      "BufferedReader",
+      "Scanner"
+    ],
+    "respuesta": "ObjectInputStream"
+  },
+  {
+    "pregunta": "¿Cómo se debe manejar información sensible en memoria en Java?",
+    "opciones": [
+      "Usar String en lugar de char[] para contraseñas",
+      "Usar char[] y limpiar el array después de usarlo",
+      "Almacenarla en variables públicas",
+      "No es necesario manejarla de forma especial"
+    ],
+    "respuesta": "Usar char[] y limpiar el array después de usarlo"
+  },
+  {
+    "pregunta": "¿Qué protege el uso de HTTPS en una aplicación Java?",
+    "opciones": [
+      "Confidencialidad de los datos en tránsito",
+      "Integridad de los datos en tránsito",
+      "Autenticación del servidor",
+      "Todas las anteriores"
+    ],
+    "respuesta": "Todas las anteriores"
+  },
+  {
+    "pregunta": "¿Cuál es el riesgo de usar System.out.println() para logs en producción?",
+    "opciones": [
+      "Puede exponer información sensible",
+      "Reduce el rendimiento de la aplicación",
+      "No tiene ningún riesgo",
+      "Solo es un problema en aplicaciones web"
+    ],
+    "respuesta": "Puede exponer información sensible"
+  },
+  {
+    "pregunta": "¿Qué patrón ayuda a prevenir CSRF (Cross-Site Request Forgery) en Java web apps?",
+    "opciones": [
+      "Usar tokens CSRF sincronizados",
+      "Validar el header Referer",
+      "Ambas opciones",
+      "Ninguna de las anteriores"
+    ],
+    "respuesta": "Ambas opciones"
+  },
+  {
+    "pregunta": "¿Por qué es riesgoso usar Runtime.exec() en Java?",
+    "opciones": [
+      "Puede permitir ejecución de comandos no deseados",
+      "Consume muchos recursos del sistema",
+      "No es compatible con todos los sistemas operativos",
+      "Es lento comparado con otras alternativas"
+    ],
+    "respuesta": "Puede permitir ejecución de comandos no deseados"
+  },
+  {
+    "pregunta": "¿Qué técnica ayuda a prevenir ataques de fuerza bruta en Java?",
+    "opciones": [
+      "Implementar límite de intentos fallidos",
+      "Usar CAPTCHAs",
+      "Retrasos progresivos entre intentos",
+      "Todas las anteriores"
+    ],
+    "respuesta": "Todas las anteriores"
+  },
+  {
+    "pregunta": "¿Qué es importante al implementar autenticación en Java?",
+    "opciones": [
+      "Usar solo contraseñas complejas",
+      "Implementar autenticación multifactor",
+      "Proteger contra ataques de repetición",
+      "Todas las anteriores"
+    ],
+    "respuesta": "Todas las anteriores"
+  },
+  {
+    "pregunta": "¿Cómo se debe manejar las excepciones en Java para seguridad?",
+    "opciones": [
+      "Mostrar mensajes detallados al usuario",
+      "Registrar detalles en logs pero mostrar mensajes genéricos",
+      "No manejar excepciones",
+      "Solo mostrar stack traces en producción"
+    ],
+    "respuesta": "Registrar detalles en logs pero mostrar mensajes genéricos"
+  },
+  {
+    "pregunta": "¿Qué problema de seguridad puede causar el uso de reflexión en Java?",
+    "opciones": [
+      "Puede violar encapsulamiento y acceder a miembros privados",
+      "Reduce el rendimiento de la aplicación",
+      "Hace el código más difícil de mantener",
+      "No tiene implicaciones de seguridad"
+    ],
+    "respuesta": "Puede violar encapsulamiento y acceder a miembros privados"
+  },
+  {
+    "pregunta": "¿Qué es Content Security Policy (CSP) en aplicaciones web Java?",
+    "opciones": [
+      "Un mecanismo para prevenir XSS",
+      "Un estándar para cifrado de datos",
+      "Un protocolo de autenticación",
+      "Un framework para manejo de sesiones"
+    ],
+    "respuesta": "Un mecanismo para prevenir XSS"
+  },
+  {
+    "pregunta": "¿Por qué es importante actualizar las dependencias en un proyecto Java?",
+    "opciones": [
+      "Para obtener nuevas características",
+      "Para corregir vulnerabilidades conocidas",
+      "Para mejorar el rendimiento",
+      "Todas las anteriores"
+    ],
+    "respuesta": "Todas las anteriores"
+  }
+];
+
+let disponibles = [...nombresOriginales];
+let seleccionados = [];
+let preguntasDisponibles = [...preguntasOriginales];
+let currentPerson = "";
+
+const selectedEl = document.getElementById('selected');
+const drawBtn = document.getElementById('drawBtn');
+const resetBtn = document.getElementById('resetBtn');
+const modal = document.getElementById('modal');
+const questionTitle = document.getElementById('questionTitle');
+const optionsContainer = document.getElementById('optionsContainer');
+const personName = document.getElementById('personName');
+const closeModalBtn = document.getElementById('closeModalBtn');
+
+function mostrarModalPregunta(preguntaData) {
+  const pregunta = preguntaData;
+  if (!pregunta) {
+    alert("Ya no quedan preguntas disponibles.");
+    //drawBtn.disabled = true;
+    drawBtn.style.display = 'none';
+
+    resetBtn.style.display = "inline-block";
+    return;
+  }
+
+  personName.textContent = `Pregunta para: ${currentPerson}`;
+  questionTitle.textContent = pregunta.pregunta;
+  optionsContainer.innerHTML = '';
+  closeModalBtn.style.display = 'none';
+
+  pregunta.opciones.forEach(opcion => {
+    const div = document.createElement('div');
+    div.className = 'option';
+    div.textContent = opcion;
+
+    div.onclick = () => {
+      const todas = optionsContainer.querySelectorAll('.option');
+      todas.forEach(opt => {
+        opt.style.pointerEvents = 'none';
+
+        if (opt.textContent === pregunta.respuesta) {
+          opt.classList.add('correct');
+          if (!opt.textContent.includes('✅')) {
+            opt.textContent += " ✅ Correcto";
+          }
+        } else if (opt.textContent === opcion) {
+          opt.classList.add('incorrect');
+          opt.textContent += " ❌ Incorrecto";
+        }
+      });
+
+      closeModalBtn.style.display = 'inline-block';
+
+      // Emitir la selección al servidor para otros clientes
+      socket.emit('selectAnswer', {
+        seleccionada: opcion,
+        correcta: pregunta.respuesta
+      });
+    };
+
+    optionsContainer.appendChild(div);
+  });
+
+  modal.style.display = 'flex';
+}
+
+function sacarNombre() {
+  if (preguntasDisponibles.length === 0) {
+    selectedEl.textContent = "Juego finalizado. Ya no hay preguntas.";
+    //drawBtn.disabled = true;
+    drawBtn.style.display = 'none';
+
+    resetBtn.style.display = "inline-block";
+
+    socket.emit('gameOver');
+    return;
+  }
+
+  drawBtn.disabled = true;
+  let vueltas = 15;
+  let intervalo = setInterval(() => {
+    const nombreAleatorio = disponibles[Math.floor(Math.random() * disponibles.length)];
+
+    // Mostrar el nombre localmente
+    selectedEl.textContent = nombreAleatorio;
+
+    // Emitir el nombre actual para animación sincronizada
+    socket.emit('animarNombre', nombreAleatorio);
+
+    vueltas--;
+    if (vueltas <= 0) {
+      clearInterval(intervalo);
+      const index = Math.floor(Math.random() * disponibles.length);
+      const nombreSeleccionado = disponibles[index];
+      currentPerson = nombreSeleccionado;
+      selectedEl.textContent = nombreSeleccionado;
+
+      if (!seleccionados.includes(nombreSeleccionado)) {
+        seleccionados.push(nombreSeleccionado);
+      }
+
+      const idx = Math.floor(Math.random() * preguntasDisponibles.length);
+      const pregunta = preguntasDisponibles.splice(idx, 1)[0];
+
+      mostrarModalPregunta(pregunta);
+
+      // Emitir evento final de nombre y pregunta seleccionada
+      socket.emit('drawName', {
+        nombre: currentPerson,
+        pregunta: pregunta
+      });
+    }
+  }, 70);
+}
+
+
+function reiniciar() {
+  disponibles = [...nombresOriginales];
+  seleccionados = [];
+  preguntasDisponibles = [...preguntasOriginales];
+  selectedEl.textContent = "Presiona el botón para comenzar";
+  modal.style.display = 'none';
+  drawBtn.style.display = 'inline-block';
+  drawBtn.disabled = false;
+  resetBtn.style.display = "none";
+
+  socket.emit('resetGame');
+}
+
+drawBtn.addEventListener('click', sacarNombre);
+resetBtn.addEventListener('click', reiniciar);
+closeModalBtn.addEventListener('click', () => {
+  modal.style.display = 'none';
+
+  if (preguntasDisponibles.length === 0) {
+    selectedEl.textContent = "Juego finalizado. Ya no hay preguntas.";
+    //drawBtn.disabled = true;
+    drawBtn.style.display = 'none';
+
+    resetBtn.style.display = "inline-block";
+
+    socket.emit('gameOver');
+  } else {
+    drawBtn.disabled = false;
+  }
+
+  socket.emit('closeModal');
+});
+
+// Escuchar eventos del servidor
+
+socket.on('drawName', (data) => {
+  currentPerson = data.nombre;
+  selectedEl.textContent = currentPerson;
+  mostrarModalPregunta(data.pregunta);
+});
+
+socket.on('selectAnswer', (data) => {
+  const todas = optionsContainer.querySelectorAll('.option');
+  todas.forEach(opt => {
+    opt.style.pointerEvents = 'none';
+    if (opt.textContent === data.correcta) {
+      opt.classList.add('correct');
+      if (!opt.textContent.includes('✅')) {
+        opt.textContent += " ✅ Correcto";
+      }
+    } else if (opt.textContent === data.seleccionada) {
+      opt.classList.add('incorrect');
+      opt.textContent += " ❌ Incorrecto";
+    }
+  });
+  closeModalBtn.style.display = 'inline-block';
+});
+
+socket.on('closeModal', () => {
+  modal.style.display = 'none';
+  drawBtn.disabled = false;
+});
+
+socket.on('resetGame', () => {
+  disponibles = [...nombresOriginales];
+  seleccionados = [];
+  preguntasDisponibles = [...preguntasOriginales];
+  selectedEl.textContent = "Presiona el botón para comenzar";
+  modal.style.display = 'none';
+  drawBtn.style.display = 'inline-block';
+  drawBtn.disabled = false;
+  resetBtn.style.display = "none";
+});
+
+socket.on('animarNombre', (nombre) => {
+  selectedEl.textContent = nombre;
+});
+
+socket.on('gameOver', () => {
+  selectedEl.textContent = "Juego finalizado. Ya no hay preguntas.";
+  //drawBtn.disabled = true;
+  drawBtn.style.display = 'none';
+
+  resetBtn.style.display = "inline-block";
+});
+
+
+</script>
+
+</body>
+</html>
